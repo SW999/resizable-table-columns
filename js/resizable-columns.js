@@ -1,140 +1,131 @@
 function getWidth(x) {
-    return document.defaultView.getComputedStyle(x, null).getPropertyValue("width") || 0;
+  return document.defaultView.getComputedStyle(x, null).getPropertyValue("width") || 0;
 }
 
 // main class prototype
 function ColumnResize(table) {
-    if (table.tagName != 'TABLE') return;
+  if (table.tagName !== 'TABLE') return;
 
-    this.id = table.id;
+  this.id = table.id;
+  this.dragColumns = table.rows[0].cells; // first row columns, used for changing of width
+  this.dragColumnsLength = this.dragColumns.length;
+  this.dragColumnNo = null; // current dragging column
+  this.dragX = null; // last event X mouse coordinate
+  this.saveOnmouseup = null;   // save document onmouseup event handler
+  this.saveOnmousemove = null; // save document onmousemove event handler
+  this.saveBodyCursor = null;  // save body cursor property
 
-    // ============================================================
-    // private data
-    var self = this,
-        dragColumns = table.rows[0].cells, // first row columns, used for changing of width
-        dragColumnsLength = dragColumns.length;
-
-    if (!dragColumns) return; // return if no table exists or no one row exists
-
-    var dragColumnNo, // current dragging column
-        dragX,        // last event X mouse coordinate
-        saveOnmouseup,   // save document onmouseup event handler
-        saveOnmousemove, // save document onmousemove event handler
-        saveBodyCursor;  // save body cursor property
-
-    // ============================================================
-    // methods
-
-    // ============================================================
-    // do changes columns widths
-    // returns true if success and false otherwise
-    this.changeColumnWidth = function (no, w) {
-        if (!dragColumns) return false;
-
-        if (no < 0) return false;
-        if (dragColumns.length < no) return false;
-
-        if (parseInt(dragColumns[no].style.width) <= -w) return false;
-        if (dragColumns[no + 1] && parseInt(dragColumns[no + 1].style.width) <= w) return false;
-
-        dragColumns[no].style.width = parseInt(dragColumns[no].style.width) + w + 'px';
-        if (dragColumns[no + 1]) {
-            dragColumns[no + 1].style.width = parseInt(dragColumns[no + 1].style.width) - w + 'px';
-        }
-
-        return true;
-    };
-
-    // ============================================================
-    // do drag column width
-    this.columnDrag = function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        var X = e.pageX;
-        if (!self.changeColumnWidth(dragColumnNo, X - dragX)) {
-            // stop drag!
-            self.stopColumnDrag(e);
-        }
-
-        dragX = X;
-    };
-
-    // ============================================================
-    // stops column dragging
-    this.stopColumnDrag = function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (!dragColumns) return;
-
-        // restore handlers & cursor
-        document.onmouseup = saveOnmouseup;
-        document.onmousemove = saveOnmousemove;
-        document.body.style.cursor = saveBodyCursor;
-
-        // remember columns widths in cookies for server side
-        var colWidth = '',
-            separator = '';
-
-        for (var i = 0; i < dragColumnsLength; i++) {
-            colWidth += separator + parseInt(getWidth(dragColumns[i]));
-            separator = '+';
-        }
-        var expire = new Date();
-        expire.setDate(expire.getDate() + 365); // year
-        document.cookie = self.id + '-width=' + colWidth +
-        '; expires=' + expire.toGMTString();
-    };
-
-    // ============================================================
-    // init data and start dragging
-    this.startColumnDrag = function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        // remember dragging object
-        dragColumnNo = (e.target).parentNode.parentNode.cellIndex;
-        dragX = e.pageX;
-
-        // set up current columns widths in their particular attributes
-        for (var y = 0; y < dragColumnsLength; y++) {
-            dragColumns[y].width = ""; // for sure
-            dragColumns[y].style.width = parseInt(getWidth(dragColumns[y])) + "px";
-        }
-
-        saveOnmouseup = document.onmouseup;
-        document.onmouseup = self.stopColumnDrag;
-
-        saveBodyCursor = document.body.style.cursor;
-        document.body.style.cursor = 'w-resize';
-
-        // fire!
-        saveOnmousemove = document.onmousemove;
-        document.onmousemove = self.columnDrag;
-    };
-
-    // prepare table header to be draggable
-    // it runs during class creation
-    for (var i = 0; i < dragColumnsLength; i++) {
-        dragColumns[i].innerHTML = "<div class='drag-wrapper'><div class='drag-marker'></div><div class='drag-th-content'>" +
-        dragColumns[i].innerHTML + "</div></div>";
-        dragColumns[i].firstChild.firstChild.onmousedown = this.startColumnDrag;
-    }
+  this.init();
 }
+
+ColumnResize.prototype.init = function () {
+  var sizesArr = this.getSizesFromStorage();
+  // prepare table header to be draggable
+  // it runs during class creation
+  for (var i = 0; i < this.dragColumnsLength; i++) {
+    var inner = this.dragColumns[i].innerHTML;
+    if (sizesArr.length > 0) {
+      this.dragColumns[i].style.width = sizesArr[i] + "px";
+    }
+
+    this.dragColumns[i].innerHTML = "<div class='drag-wrapper'><div class='drag-marker'></div><div class='drag-th-content'>" + inner + "</div></div>";
+    this.dragColumns[i].firstChild.firstChild.onmousedown = this.startColumnDrag.bind(this);
+  }
+};
+
+ColumnResize.prototype.startColumnDrag = function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // remember dragging object
+  this.dragColumnNo = (e.target).parentNode.parentNode.cellIndex;
+  this.dragX = e.pageX;
+
+  // set up current columns widths in their particular attributes
+  for (var y = 0; y < this.dragColumnsLength; y++) {
+    this.dragColumns[y].width = ""; // for sure
+    this.dragColumns[y].style.width = parseInt(getWidth(this.dragColumns[y])) + "px";
+  }
+
+  this.saveOnmouseup = document.onmouseup;
+  document.onmouseup = this.stopColumnDrag.bind(this);
+
+  this.saveBodyCursor = document.body.style.cursor;
+  document.body.style.cursor = 'w-resize';
+
+  // fire!
+  this.saveOnmousemove = document.onmousemove;
+  document.onmousemove = this.columnDrag.bind(this);
+};
+
+ColumnResize.prototype.stopColumnDrag = function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // restore handlers & cursor
+  document.onmouseup = this.saveOnmouseup;
+  document.onmousemove = this.saveOnmousemove;
+  document.body.style.cursor = this.saveBodyCursor;
+
+  // remember columns widths in localStorage
+  var colWidth = '',
+    separator = '';
+
+  for (var i = 0; i < this.dragColumnsLength; i++) {
+    colWidth += separator + parseInt(getWidth(this.dragColumns[i]));
+    separator = '+';
+  }
+
+  localStorage.setItem(this.id + '-width', colWidth);
+};
+
+ColumnResize.prototype.columnDrag = function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  var X = e.pageX;
+
+  if (!this.changeColumnWidth(this.dragColumnNo, X - this.dragX)) {
+    // stop drag!
+    this.stopColumnDrag(e);
+  }
+
+  this.dragX = X;
+};
+
+ColumnResize.prototype.changeColumnWidth = function (columnIndex, deltaX) {
+  if (columnIndex < 0 || this.dragColumnsLength < columnIndex) return false;
+
+  if (parseInt(this.dragColumns[columnIndex].style.width) <= -deltaX) return false;
+  if (this.dragColumns[columnIndex + 1] && parseInt(this.dragColumns[columnIndex + 1].style.width) <= deltaX) return false;
+
+  this.dragColumns[columnIndex].style.width = parseInt(this.dragColumns[columnIndex].style.width) + deltaX + 'px';
+  if (this.dragColumns[columnIndex + 1]) {
+    this.dragColumns[columnIndex + 1].style.width = parseInt(this.dragColumns[columnIndex + 1].style.width) - deltaX + 'px';
+  }
+
+  return true;
+};
+
+ColumnResize.prototype.getSizesFromStorage = function () {
+  var sizes = localStorage.getItem(this.id + '-width');
+
+  if (!sizes) return [];
+  return sizes.split('+');
+};
 
 // select all tables and make resizable those that have 'resizable' class
 function ResizableColumns() {
-    var tables = document.querySelectorAll('table');
+  var tables = document.querySelectorAll('table');
 
-    for (var i = 0; tables.item(i); i++) {
-        if (tables[i].classList.contains('resizable')) {
-            // generate id
-            if (!tables[i].id) tables[i].id = 'table' + (i + 1);
-            // make table resizable
-            new ColumnResize(tables[i]);
-        }
+  for (var i = 0; tables.item(i); i++) {
+    if (tables[i].classList.contains('resizable')) {
+      // generate id
+      if (!tables[i].id) tables[i].id = 'table' + (i + 1);
+      // make table resizable
+      new ColumnResize(tables[i]);
     }
+  }
 }
 
 window.addEventListener('load', ResizableColumns, false);

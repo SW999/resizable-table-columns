@@ -1,5 +1,7 @@
-## Resizable Table Columns
+## Resizable Table
 Responsive material table with resizable columns.
+
+Final column sizes save in localStorage and set up after reloading.
 - - - -
 
 **To resize column:**

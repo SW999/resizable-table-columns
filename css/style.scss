@@ -52,8 +52,9 @@ body {
 h1 {
   margin: 2rem 0;
   color: $fge-blue;
-  font-size: 2.5rem;
+  font-size: 3rem;
   line-height: 3rem;
+  text-align: center;
 }
 h3 {
   margin: 1rem 0;
@@ -65,10 +66,14 @@ p, li {
   margin: 0 0 .5em;
   max-width: 76rem;
   word-wrap: break-word;
+  font-size: 1.6rem;
+}
+img {
+  vertical-align: bottom;
 }
 ul {
   margin-top: 0;
-  margin-bottom: 4rem;
+  margin-bottom: 2rem;
 }
 .material-responsive-table {
   margin-top: 1.5rem;
